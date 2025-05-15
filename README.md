@@ -50,13 +50,13 @@ Dump the software license list of Python packages installed with pip.
 
 ## Description
 
-`pip-licenses` is a CLI tool for checking the software licenses of installed Python packages with pip.
+`pip-licenses-cli` is a CLI tool for checking the software licenses of installed Python packages with pip.
 
 Implemented with the idea inspired by `composer licenses` command in Composer (a.k.a PHP package management tool).
 
 https://getcomposer.org/doc/03-cli.md#licenses
 
-This is a fork of the original [pip-licenses](https://github.com/raimon49/pip-licenses) project.
+This is a fork of the original [pip-licenses](https://github.com/raimon49/pip-licenses) project. While `pip-licenses-cli` provides a CLI, [pip-licenses-lib](https://github.com/stefan6419846/pip-licenses-lib) provides the library functionality. The CLI builds upon the library.
 
 ## Installation
 
@@ -64,7 +64,7 @@ Install it via PyPI using `pip` command.
 
 ```bash
 # Install or Upgrade to newest available version
-$ pip install -U pip-licenses
+$ pip install -U pip-licenses-cli
 ```
 
 ## Usage
@@ -73,7 +73,7 @@ Execute the command with your venv (or virtualenv) environment.
 
 ```bash
 # Install packages in your venv environment
-(venv) $ pip install Django pip-licenses
+(venv) $ pip install Django pip-licenses-cli
 
 # Check the licenses with your venv environment
 (venv) $ pip-licenses
@@ -88,12 +88,13 @@ Execute the command with your venv (or virtualenv) environment.
 
 #### Option: python
 
-By default, this tools finds the packages from the environment pip-licenses is launched from, by searching in current python's `sys.path` folders. In the case you want to search for packages in an other environment (e.g. if you want to run pip-licenses from its own isolated environment), you can specify a path to a python executable. The packages will be searched for in the given python's `sys.path`, free of pip-licenses dependencies.
+By default, this tools finds the packages from the environment pip-licenses-cli is launched from, by searching in current python's `sys.path` folders. In the case you want to search for packages in an other environment (e.g. if you want to run pip-licenses-cli from its own isolated environment), you can specify a path to a python executable. The packages will be searched for in the given python's `sys.path`, free of pip-licenses dependencies.
 
 ```bash
 (venv) $ pip-licenses --with-system | grep pip
- pip                       22.3.1       MIT License
- pip-licenses              4.1.0        MIT License
+ pip                           22.3.1       MIT License
+ pip-licenses-cli              4.1.0        MIT License
+ pip-licenses-lib              0.5.0        MIT License
 ```
 
 ```bash
@@ -250,7 +251,7 @@ When executed with the `--format=json` option, you can output list in JSON forma
 ##### JSON LicenseFinder
 
 When executed with the `--format=json-license-finder` option, you can output list in JSON format that is identical to [LicenseFinder](https://github.com/pivotal/LicenseFinder). The `jlf` keyword is prepared as alias of `jlf`.
-This makes pip-licenses a drop-in replacement for LicenseFinder.
+This makes pip-licenses-cli a drop-in replacement for LicenseFinder.
 
 ```json
 [
@@ -347,7 +348,7 @@ When executed with the `--ignore-packages` option, ignore the package specified 
 Package names of arguments can be separated by spaces.
 
 ```bash
-(venv) $ pip-licenses --with-system --ignore-packages django pip pip-licenses
+(venv) $ pip-licenses --with-system --ignore-packages django pip pip-licenses-cli pip-licenses-lib
  Name        Version  License
  prettytable 3.5.0    BSD License
  pytz        2017.3   MIT
@@ -390,20 +391,21 @@ Package names of arguments can be separated by spaces.
 
 By default, system packages such as `pip` and `setuptools` are ignored.
 
-And `pip-licenses` and the implicit dependency `prettytable` and `wcwidth` will also be ignored.
+And `pip-licenses-cli`, `pip-licenses-lib` and the implicit dependency `prettytable` and `wcwidth` will also be ignored.
 
 If you want to output all including system package, use the `--with-system` option.
 
 ```bash
 (venv) $ pip-licenses --with-system
- Name          Version  License
- Django        2.0.2    BSD
- pip           9.0.1    MIT
- pip-licenses  1.0.0    MIT License
- prettytable   3.5.0    BSD License
- pytz          2017.3   MIT
- setuptools    38.5.0   UNKNOWN
- wcwidth       0.2.5    MIT License
+ Name              Version  License
+ Django            2.0.2    BSD
+ pip               9.0.1    MIT
+ pip-licenses-cli  1.0.0    MIT License
+ pip-licenses-lib  0.5.0    MIT License
+ prettytable       3.5.0    BSD License
+ pytz              2017.3   MIT
+ setuptools        38.5.0   UNKNOWN
+ wcwidth           0.2.5    MIT License
 ```
 
 #### Option: with-authors
@@ -604,7 +606,7 @@ You can check the package license used by your app in the isolated Docker enviro
 
 ```bash
 # Clone this repository to local
-$ git clone https://github.com/raimon49/pip-licenses.git
+$ git clone https://github.com/stefan6419846/pip-licenses.git
 $ cd pip-licenses
 
 # Create your app's requirements.txt file
@@ -670,7 +672,7 @@ See useful reports:
 
 * [tomli](https://pypi.org/project/tomli/) by Taneli Hukkinen under the MIT License
 
-`pip-licenses` has been implemented in the policy to minimize the dependence on external package.
+`pip-licenses-cli` has been implemented in the policy to minimize the dependence on external package.
 
 ## Contributing
 
