@@ -77,9 +77,7 @@ def importlib_metadata_distributions_mocked(
         def metadata(self) -> PackageMetadata:
             return EmailMessageMocker(self.__dist.metadata)
 
-        def locate_file(
-            self, path: str | os.PathLike[str]
-        ) -> piplicenses_lib.importlib_metadata._meta.SimplePath:
+        def locate_file(self, path: str | os.PathLike[str]):
             return self.__dist.locate_file(path)
 
         def read_text(self, filename) -> str | None:
