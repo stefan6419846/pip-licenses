@@ -13,24 +13,20 @@ import venv
 from enum import Enum, auto
 from importlib.metadata import Distribution
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, List
-from unittest.mock import MagicMock
+from typing import TYPE_CHECKING, Any
 
 import docutils.frontend
 import docutils.parsers.rst
 import docutils.utils
+import piplicenses_lib
 import pytest
 import tomli_w
 from _pytest.capture import CaptureFixture
+from prettytable import HRuleStyle
 
 import piplicenses
 from piplicenses import (
     DEFAULT_OUTPUT_FIELDS,
-    LICENSE_UNKNOWN,
-    RULE_ALL,
-    RULE_FRAME,
-    RULE_HEADER,
-    RULE_NONE,
     SYSTEM_PACKAGES,
     CompatibleArgumentParser,
     FromArg,
@@ -44,16 +40,12 @@ from piplicenses import (
     create_parser,
     create_warn_string,
     enum_key_to_value,
-    extract_homepage,
     factory_styled_table_with_args,
-    find_license_from_classifier,
     get_output_fields,
     get_packages,
     get_sortby,
-    normalize_pkg_name,
     output_colored,
     save_if_needs,
-    select_license_by_source,
     value_to_enum_key,
 )
 
@@ -64,10 +56,14 @@ if TYPE_CHECKING:
         from email.message import Message as PackageMetadata
 
 
-UNICODE_APPENDIX = ""
 with open("tests/fixtures/unicode_characters.txt", encoding="utf-8") as f:
     # Read from external file considering a terminal that cannot handle "emoji"
     UNICODE_APPENDIX = f.readline().replace("\n", "")
+
+
+importlib_metadata_distributions_orig = (
+    piplicenses_lib.importlib_metadata.distributions
+)
 
 
 def importlib_metadata_distributions_mocked(
@@ -96,11 +92,6 @@ def importlib_metadata_distributions_mocked(
     packages = list(importlib_metadata_distributions_orig(*args, **kwargs))
     packages[-1] = DistributionMocker(packages[-1])  # type: ignore[abstract]
     return packages
-
-
-importlib_metadata_distributions_orig = (
-    piplicenses.importlib_metadata.distributions
-)
 
 
 class CommandLineTestCase(unittest.TestCase):
@@ -139,10 +130,9 @@ class TestGetLicenses(CommandLineTestCase):
     @staticmethod
     def check_rst(text: str) -> None:
         parser = docutils.parsers.rst.Parser()
-        components = (docutils.parsers.rst.Parser,)
-        settings = docutils.frontend.OptionParser(
-            components=components
-        ).get_default_values()
+        settings = docutils.frontend.get_default_settings(
+            docutils.parsers.rst.Parser
+        )
         settings.halt_level = 3
         document = docutils.utils.new_document("<rst-doc>", settings=settings)
         parser.parse(text, document)
@@ -156,7 +146,7 @@ class TestGetLicenses(CommandLineTestCase):
         self.assertFalse(table.border)
         self.assertTrue(table.header)
         self.assertEqual("+", table.junction_char)
-        self.assertEqual(RULE_FRAME, table.hrules)
+        self.assertEqual(HRuleStyle.FRAME, table.hrules)
 
         output_fields = get_output_fields(args)
         self.assertEqual(
@@ -239,60 +229,6 @@ class TestGetLicenses(CommandLineTestCase):
             "Apache Software License",
         ):
             self.assertIn(license_name, license_classifier)
-
-    def test_find_license_from_classifier(self) -> None:
-        classifiers = ["License :: OSI Approved :: MIT License"]
-        self.assertEqual(
-            ["MIT License"], find_license_from_classifier(classifiers)
-        )
-
-    def test_display_multiple_license_from_classifier(self) -> None:
-        classifiers = [
-            "License :: OSI Approved",
-            "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-            "License :: OSI Approved :: MIT License",
-            "License :: Public Domain",
-        ]
-        self.assertEqual(
-            [
-                "GNU General Public License v3 (GPLv3)",
-                "MIT License",
-                "Public Domain",
-            ],
-            find_license_from_classifier(classifiers),
-        )
-
-    def test_if_no_classifiers_then_no_licences_found(self) -> None:
-        classifiers: List[str] = []
-        self.assertEqual([], find_license_from_classifier(classifiers))
-
-    def test_select_license_by_source(self) -> None:
-        self.assertEqual(
-            {"MIT License"},
-            select_license_by_source(
-                FromArg.CLASSIFIER, ["MIT License"], "MIT"
-            ),
-        )
-
-        self.assertEqual(
-            {LICENSE_UNKNOWN},
-            select_license_by_source(FromArg.CLASSIFIER, [], "MIT"),
-        )
-
-        self.assertEqual(
-            {"MIT License"},
-            select_license_by_source(FromArg.MIXED, ["MIT License"], "MIT"),
-        )
-
-        self.assertEqual(
-            {"MIT"}, select_license_by_source(FromArg.MIXED, [], "MIT")
-        )
-        self.assertEqual(
-            {"Apache License 2.0"},
-            select_license_by_source(
-                FromArg.MIXED, ["Apache License 2.0"], "Apache-2.0"
-            ),
-        )
 
     def test_with_system(self) -> None:
         with_system_args = ["--with-system"]
@@ -542,7 +478,7 @@ class TestGetLicenses(CommandLineTestCase):
         self.assertFalse(table.border)
         self.assertTrue(table.header)
         self.assertEqual("+", table.junction_char)
-        self.assertEqual(RULE_FRAME, table.hrules)
+        self.assertEqual(HRuleStyle.FRAME, table.hrules)
 
     def test_format_plain_vertical(self) -> None:
         format_plain_args = ["--format=plain-vertical", "--from=classifier"]
@@ -561,16 +497,21 @@ class TestGetLicenses(CommandLineTestCase):
         self.assertTrue(table.border)
         self.assertTrue(table.header)
         self.assertEqual("|", table.junction_char)
-        self.assertEqual(RULE_HEADER, table.hrules)
+        self.assertEqual(HRuleStyle.HEADER, table.hrules)
 
-    @unittest.skipIf(
-        sys.version_info < (3, 6, 0),
-        "To unsupport Python 3.5 in the near future",
-    )
-    def test_format_rst_without_filter(self) -> None:
-        piplicenses.importlib_metadata.distributions = (
+    def _patch_distributions(self) -> None:
+        def cleanup():
+            piplicenses_lib.importlib_metadata.distributions = (
+                importlib_metadata_distributions_orig
+            )
+
+        self.addCleanup(cleanup)
+        piplicenses_lib.importlib_metadata.distributions = (
             importlib_metadata_distributions_mocked
         )
+
+    def test_format_rst_without_filter(self) -> None:
+        self._patch_distributions()
         format_rst_args = ["--format=rst"]
         args = self.parser.parse_args(format_rst_args)
         table = create_licenses_table(args)
@@ -579,15 +520,10 @@ class TestGetLicenses(CommandLineTestCase):
         self.assertTrue(table.border)
         self.assertTrue(table.header)
         self.assertEqual("+", table.junction_char)
-        self.assertEqual(RULE_ALL, table.hrules)
-        piplicenses.importlib_metadata.distributions = (
-            importlib_metadata_distributions_orig
-        )
+        self.assertEqual(HRuleStyle.ALL, table.hrules)
 
     def test_format_rst_default_filter(self) -> None:
-        piplicenses.importlib_metadata.distributions = (
-            importlib_metadata_distributions_mocked
-        )
+        self._patch_distributions()
         format_rst_args = ["--format=rst", "--filter-strings"]
         args = self.parser.parse_args(format_rst_args)
         table = create_licenses_table(args)
@@ -596,11 +532,8 @@ class TestGetLicenses(CommandLineTestCase):
         self.assertTrue(table.border)
         self.assertTrue(table.header)
         self.assertEqual("+", table.junction_char)
-        self.assertEqual(RULE_ALL, table.hrules)
+        self.assertEqual(HRuleStyle.ALL, table.hrules)
         self.check_rst(str(table))
-        piplicenses.importlib_metadata.distributions = (
-            importlib_metadata_distributions_orig
-        )
 
     def test_format_confluence(self) -> None:
         format_confluence_args = ["--format=confluence"]
@@ -611,7 +544,7 @@ class TestGetLicenses(CommandLineTestCase):
         self.assertTrue(table.border)
         self.assertTrue(table.header)
         self.assertEqual("|", table.junction_char)
-        self.assertEqual(RULE_NONE, table.hrules)
+        self.assertEqual(HRuleStyle.NONE, table.hrules)
 
     def test_format_html(self) -> None:
         format_html_args = ["--format=html", "--with-authors"]
@@ -711,38 +644,25 @@ class TestGetLicenses(CommandLineTestCase):
         self.assertTrue(actual.endswith("\033[0m"))
 
     def test_without_filter(self) -> None:
-        piplicenses.importlib_metadata.distributions = (
-            importlib_metadata_distributions_mocked
-        )
+        self._patch_distributions()
         args = self.parser.parse_args([])
         packages = list(piplicenses.get_packages(args))
-        self.assertIn(UNICODE_APPENDIX, packages[-1]["name"])
-        piplicenses.importlib_metadata.distributions = (
-            importlib_metadata_distributions_orig
-        )
+        self.assertIn(UNICODE_APPENDIX, packages[-1].name)
 
     def test_with_default_filter(self) -> None:
-        piplicenses.importlib_metadata.distributions = (
-            importlib_metadata_distributions_mocked
-        )
+        self._patch_distributions()
         args = self.parser.parse_args(["--filter-strings"])
         packages = list(piplicenses.get_packages(args))
-        piplicenses.importlib_metadata.distributions = (
-            importlib_metadata_distributions_orig
-        )
-        self.assertNotIn(UNICODE_APPENDIX, packages[-1]["name"])
+        self.assertNotIn(UNICODE_APPENDIX, packages[-1].name)
 
     def test_with_specified_filter(self) -> None:
-        piplicenses.importlib_metadata.distributions = (
-            importlib_metadata_distributions_mocked
-        )
+        self._patch_distributions()
         args = self.parser.parse_args(
             ["--filter-strings", "--filter-code-page=ascii"]
         )
         packages = list(piplicenses.get_packages(args))
-        self.assertNotIn(UNICODE_APPENDIX, packages[-1]["summary"])
-        piplicenses.importlib_metadata.distributions = (
-            importlib_metadata_distributions_orig
+        self.assertNotIn(
+            UNICODE_APPENDIX, packages[-1].distribution.metadata["summary"]
         )
 
     def test_case_insensitive_set_diff(self) -> None:
@@ -810,61 +730,44 @@ class TestGetLicenses(CommandLineTestCase):
         self.assertTrue(len(a_intersect_empty) == 0)
 
 
-class MockStdStream(object):
-    def __init__(self) -> None:
-        self.printed = ""
-
-    def write(self, p) -> None:
-        self.printed = p
-
-
-def test_output_file_success(monkeypatch) -> None:
+def test_output_file_success(monkeypatch, capsys) -> None:
     def mocked_open(*args, **kwargs):
         import tempfile
 
         return tempfile.TemporaryFile("w")
 
-    mocked_stdout = MockStdStream()
-    mocked_stderr = MockStdStream()
     monkeypatch.setattr(piplicenses, "open", mocked_open)
-    monkeypatch.setattr(sys.stdout, "write", mocked_stdout.write)
-    monkeypatch.setattr(sys.stderr, "write", mocked_stderr.write)
     monkeypatch.setattr(sys, "exit", lambda n: None)
 
     save_if_needs("/foo/bar.txt", "license list")
-    assert "created path: " in mocked_stdout.printed
-    assert "" == mocked_stderr.printed
+    captured = capsys.readouterr()
+    assert "created path: " in captured.out
+    assert "" == captured.err
 
 
-def test_output_file_error(monkeypatch) -> None:
+def test_output_file_error(monkeypatch, capsys) -> None:
     def mocked_open(*args, **kwargs):
         raise IOError
 
-    mocked_stdout = MockStdStream()
-    mocked_stderr = MockStdStream()
     monkeypatch.setattr(piplicenses, "open", mocked_open)
-    monkeypatch.setattr(sys.stdout, "write", mocked_stdout.write)
-    monkeypatch.setattr(sys.stderr, "write", mocked_stderr.write)
     monkeypatch.setattr(sys, "exit", lambda n: None)
 
     save_if_needs("/foo/bar.txt", "license list")
-    assert "" == mocked_stdout.printed
-    assert "check path: " in mocked_stderr.printed
+    captured = capsys.readouterr()
+    assert "" == captured.out
+    assert "check path: " in captured.err
 
 
-def test_output_file_none(monkeypatch) -> None:
-    mocked_stdout = MockStdStream()
-    mocked_stderr = MockStdStream()
-    monkeypatch.setattr(sys.stdout, "write", mocked_stdout.write)
-    monkeypatch.setattr(sys.stderr, "write", mocked_stderr.write)
-
+def test_output_file_none(monkeypatch, capsys) -> None:
     save_if_needs(None, "license list")
+    captured = capsys.readouterr()
+
     # stdout and stderr are expected not to be called
-    assert "" == mocked_stdout.printed
-    assert "" == mocked_stderr.printed
+    assert "" == captured.out
+    assert "" == captured.err
 
 
-def test_allow_only(monkeypatch) -> None:
+def test_allow_only(monkeypatch, capsys) -> None:
     licenses = (
         "Bsd License",
         "Apache Software License",
@@ -875,22 +778,19 @@ def test_allow_only(monkeypatch) -> None:
         "GNU Library or Lesser General Public License (LGPL)",
     )
     allow_only_args = ["--allow-only={}".format(";".join(licenses))]
-    mocked_stdout = MockStdStream()
-    mocked_stderr = MockStdStream()
-    monkeypatch.setattr(sys.stdout, "write", mocked_stdout.write)
-    monkeypatch.setattr(sys.stderr, "write", mocked_stderr.write)
     monkeypatch.setattr(sys, "exit", lambda n: None)
     args = create_parser().parse_args(allow_only_args)
     create_licenses_table(args)
 
-    assert "" == mocked_stdout.printed
+    captured = capsys.readouterr()
+    assert "" == captured.out
     assert (
         "license MIT License not in allow-only licenses was found for "
-        "package" in mocked_stderr.printed
+        "package" in captured.err
     )
 
 
-def test_allow_only_partial(monkeypatch) -> None:
+def test_allow_only_partial(monkeypatch, capsys) -> None:
     licenses = (
         "Bsd",
         "Apache",
@@ -904,18 +804,15 @@ def test_allow_only_partial(monkeypatch) -> None:
         "--partial-match",
         "--allow-only={}".format(";".join(licenses)),
     ]
-    mocked_stdout = MockStdStream()
-    mocked_stderr = MockStdStream()
-    monkeypatch.setattr(sys.stdout, "write", mocked_stdout.write)
-    monkeypatch.setattr(sys.stderr, "write", mocked_stderr.write)
     monkeypatch.setattr(sys, "exit", lambda n: None)
     args = create_parser().parse_args(allow_only_args)
     create_licenses_table(args)
 
-    assert "" == mocked_stdout.printed
+    captured = capsys.readouterr()
+    assert "" == captured.out
     assert (
         "license MIT License not in allow-only licenses was found for "
-        "package" in mocked_stderr.printed
+        "package" in captured.err
     )
 
 
@@ -933,7 +830,7 @@ def test_different_python() -> None:
         python_arg = f"--python={python_exec}"
         args = create_parser().parse_args([python_arg, "-s", "-f=json"])
         pkgs = get_packages(args)
-        package_names = sorted(set(p["name"] for p in pkgs))
+        package_names = sorted(set(p.name for p in pkgs))
         print(package_names)
 
     expected_packages = ["pip"]
@@ -942,42 +839,34 @@ def test_different_python() -> None:
     assert package_names == expected_packages
 
 
-def test_fail_on(monkeypatch) -> None:
+def test_fail_on(monkeypatch, capsys) -> None:
     licenses = ("MIT license",)
     allow_only_args = ["--fail-on={}".format(";".join(licenses))]
-    mocked_stdout = MockStdStream()
-    mocked_stderr = MockStdStream()
-    monkeypatch.setattr(sys.stdout, "write", mocked_stdout.write)
-    monkeypatch.setattr(sys.stderr, "write", mocked_stderr.write)
     monkeypatch.setattr(sys, "exit", lambda n: None)
     args = create_parser().parse_args(allow_only_args)
     create_licenses_table(args)
 
-    assert "" == mocked_stdout.printed
+    captured = capsys.readouterr()
+    assert "" == captured.out
     assert (
-        "fail-on license MIT License was found for "
-        "package" in mocked_stderr.printed
+        "fail-on license MIT License was found for " "package" in captured.err
     )
 
 
-def test_fail_on_partial_match(monkeypatch) -> None:
+def test_fail_on_partial_match(monkeypatch, capsys) -> None:
     licenses = ("MIT",)
     allow_only_args = [
         "--partial-match",
         "--fail-on={}".format(";".join(licenses)),
     ]
-    mocked_stdout = MockStdStream()
-    mocked_stderr = MockStdStream()
-    monkeypatch.setattr(sys.stdout, "write", mocked_stdout.write)
-    monkeypatch.setattr(sys.stderr, "write", mocked_stderr.write)
     monkeypatch.setattr(sys, "exit", lambda n: None)
     args = create_parser().parse_args(allow_only_args)
     create_licenses_table(args)
 
-    assert "" == mocked_stdout.printed
+    captured = capsys.readouterr()
+    assert "" == captured.out
     assert (
-        "fail-on license MIT License was found for "
-        "package" in mocked_stderr.printed
+        "fail-on license MIT License was found for " "package" in captured.err
     )
 
 
@@ -1036,82 +925,6 @@ def test_verify_args(
         assert arg in capture
 
 
-def test_normalize_pkg_name() -> None:
-    expected_normalized_name = "pip-licenses"
-
-    assert normalize_pkg_name("pip_licenses") == expected_normalized_name
-    assert normalize_pkg_name("pip.licenses") == expected_normalized_name
-    assert normalize_pkg_name("Pip-Licenses") == expected_normalized_name
-
-
-def test_extract_homepage_home_page_set() -> None:
-    metadata = MagicMock()
-    metadata.get.return_value = "Foobar"
-
-    assert "Foobar" == extract_homepage(metadata=metadata)  # type: ignore
-
-    metadata.get.assert_called_once_with("home-page", None)
-
-
-def test_extract_homepage_project_url_fallback() -> None:
-    metadata = MagicMock()
-    metadata.get.return_value = None
-
-    # `Homepage` is prioritized higher than `Source`
-    metadata.get_all.return_value = [
-        "Source, source",
-        "Homepage, homepage",
-    ]
-
-    assert "homepage" == extract_homepage(metadata=metadata)  # type: ignore
-
-    metadata.get_all.assert_called_once_with("Project-URL", [])
-
-
-def test_extract_homepage_project_url_fallback_multiple_parts() -> None:
-    metadata = MagicMock()
-    metadata.get.return_value = None
-
-    # `Homepage` is prioritized higher than `Source`
-    metadata.get_all.return_value = [
-        "Source, source",
-        "Homepage, homepage, foo, bar",
-    ]
-
-    assert "homepage, foo, bar" == extract_homepage(
-        metadata=metadata  # type: ignore
-    )
-
-    metadata.get_all.assert_called_once_with("Project-URL", [])
-
-
-def test_extract_homepage_empty() -> None:
-    metadata = MagicMock()
-
-    metadata.get.return_value = None
-    metadata.get_all.return_value = []
-
-    assert None is extract_homepage(metadata=metadata)  # type: ignore
-
-    metadata.get.assert_called_once_with("home-page", None)
-    metadata.get_all.assert_called_once_with("Project-URL", [])
-
-
-def test_extract_homepage_project_uprl_fallback_capitalisation() -> None:
-    metadata = MagicMock()
-    metadata.get.return_value = None
-
-    # `homepage` is still prioritized higher than `Source` (capitalisation)
-    metadata.get_all.return_value = [
-        "Source, source",
-        "homepage, homepage",
-    ]
-
-    assert "homepage" == extract_homepage(metadata=metadata)  # type: ignore
-
-    metadata.get_all.assert_called_once_with("Project-URL", [])
-
-
 def test_pyproject_toml_args_parsed_correctly():
     # we test that parameters of different types are deserialized correctly
     pyptoject_conf = {
@@ -1136,27 +949,82 @@ def test_pyproject_toml_args_parsed_correctly():
         suffix=".toml", delete=False
     ) as temp_file:
         temp_file.write(toml_str.encode("utf-8"))
+        temp_file.seek(0)
 
-    parser = create_parser(temp_file.name)
-    args = parser.parse_args([])
+        parser = create_parser(temp_file.name)
+        args = parser.parse_args([])
 
-    tool_conf = pyptoject_conf["tool"][__pkgname__]
+        tool_conf = pyptoject_conf["tool"][__pkgname__]
 
-    # assert values are correctly parsed from toml
-    assert args.from_ == FromArg.CLASSIFIER
-    assert args.summary == tool_conf["summary"]
-    assert args.ignore_packages == tool_conf["ignore-packages"]
-    assert args.fail_on == tool_conf["fail-on"]
+        # assert values are correctly parsed from toml
+        assert args.from_ == FromArg.CLASSIFIER
+        assert args.summary == tool_conf["summary"]
+        assert args.ignore_packages == tool_conf["ignore-packages"]
+        assert args.fail_on == tool_conf["fail-on"]
 
-    # assert args are rewritable using cli
-    args = parser.parse_args(["--from=meta"])
+        # assert args are rewritable using cli
+        args = parser.parse_args(["--from=meta"])
 
-    assert args.from_ != FromArg.CLASSIFIER
-    assert args.from_ == FromArg.META
+        assert args.from_ != FromArg.CLASSIFIER
+        assert args.from_ == FromArg.META
 
-    # all other are parsed from toml
-    assert args.summary == tool_conf["summary"]
-    assert args.ignore_packages == tool_conf["ignore-packages"]
-    assert args.fail_on == tool_conf["fail-on"]
+        # all other are parsed from toml
+        assert args.summary == tool_conf["summary"]
+        assert args.ignore_packages == tool_conf["ignore-packages"]
+        assert args.fail_on == tool_conf["fail-on"]
 
-    os.unlink(temp_file.name)
+
+def test_case_insensitive_partial_match_set_diff():
+    set_a = {"Python", "Java", "C++"}
+    set_b = {"Ruby", "JavaScript"}
+    result = case_insensitive_partial_match_set_diff(set_a, set_b)
+    assert (
+        result == set_a
+    ), "When no overlap, the result should be the same as set_a."
+
+    set_a = {"Hello", "World"}
+    set_b = {"hello", "world"}
+    result = case_insensitive_partial_match_set_diff(set_a, set_b)
+    assert (
+        result == set()
+    ), "When all items overlap, the result should be an empty set."
+
+    set_a = {"HelloWorld", "Python", "JavaScript"}
+    set_b = {"hello", "script"}
+    result = case_insensitive_partial_match_set_diff(set_a, set_b)
+    assert result == {
+        "Python"
+    }, "Only 'Python' should remain as it has no overlap with set_b."
+
+    set_a = {"HELLO", "world"}
+    set_b = {"hello"}
+    result = case_insensitive_partial_match_set_diff(set_a, set_b)
+    assert result == {
+        "world"
+    }, "The function should handle case-insensitive matches correctly."
+
+    set_a = set()
+    set_b = set()
+    result = case_insensitive_partial_match_set_diff(set_a, set_b)
+    assert (
+        result == set()
+    ), "When both sets are empty, the result should also be empty."
+
+    set_a = {"Python", "Java"}
+    set_b = set()
+    result = case_insensitive_partial_match_set_diff(set_a, set_b)
+    assert (
+        result == set_a
+    ), "If set_b is empty, result should be the same as set_a."
+
+    set_a = set()
+    set_b = {"Ruby"}
+    result = case_insensitive_partial_match_set_diff(set_a, set_b)
+    assert (
+        result == set()
+    ), "If set_a is empty, result should be empty regardless of set_b."
+
+    set_a = {"Python 3.11", "Python 3.12", "Javascript"}
+    set_b = {"Python", "Python 3"}
+    result = case_insensitive_partial_match_set_diff(set_a, set_b)
+    assert result == {"Javascript"}
