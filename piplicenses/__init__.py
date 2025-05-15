@@ -1,31 +1,28 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# vim:fenc=utf-8 ff=unix ft=python ts=4 sw=4 sts=4 si et
-"""
-pip-licenses
+# pip-licenses-lib
+#
+# MIT License
+#
+# Copyright (c) 2018 raimon
+# Copyright (c) 2025 stefan6419846
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
-MIT License
-
-Copyright (c) 2018 raimon
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-"""
 from __future__ import annotations
 
 import argparse
@@ -59,8 +56,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 open = open  # allow monkey patching
 
-__pkgname__ = "pip-licenses"
-__version__ = "5.0.0"
+__pkgname__ = "pip-licenses-cli"
+__version__ = "1.0.0"
 __summary__ = (
     "Dump the software license list of Python packages installed with pip."
 )
@@ -101,7 +98,6 @@ SUMMARY_OUTPUT_FIELDS = (
 # Mapping of FIELD_NAMES to METADATA_KEYS where they differ by more than case
 FIELDS_TO_METADATA_KEYS = {
     "URL": "homepage",
-    "Description": "summary",
     "License-Metadata": "license",
     "License-Classifier": "license_classifier",
     "LicenseFile": "license_files",
@@ -139,8 +135,12 @@ def get_packages(
     if args.allow_only:
         allow_only_licenses = set(map(str.strip, args.allow_only.split(";")))
 
+    include_files = args.with_license_file or args.with_notice_file
     for pkg_info in _get_packages(
-        from_source=args.from_, python_path=args.python, normalize_names=False
+        from_source=args.from_,
+        python_path=args.python,
+        include_files=include_files,
+        normalize_names=False,
     ):
         pkg_name = normalize_package_name(pkg_info.name)
         pkg_name_and_version = pkg_name + ":" + pkg_info.version
@@ -243,6 +243,9 @@ def create_licenses_table(
                 )
             elif hasattr(pkg, field.lower()):
                 row.append(cast(str, getattr(pkg, field.lower())))
+            elif field.lower() == "description":
+                # TODO: Include in library.
+                row.append(cast(str, pkg.distribution.metadata["summary"]))
             else:
                 value = getattr(pkg, FIELDS_TO_METADATA_KEYS[field])
                 if field in {

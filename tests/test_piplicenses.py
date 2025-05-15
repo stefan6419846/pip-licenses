@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-# vim:fenc=utf-8 ff=unix ft=python ts=4 sw=4 sts=4 si et
 from __future__ import annotations
 
 import copy
@@ -12,6 +10,7 @@ import unittest
 import venv
 from enum import Enum, auto
 from importlib.metadata import Distribution
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
@@ -44,6 +43,7 @@ from piplicenses import (
     get_output_fields,
     get_packages,
     get_sortby,
+    load_config_from_file,
     output_colored,
     save_if_needs,
     value_to_enum_key,
@@ -76,6 +76,14 @@ def importlib_metadata_distributions_mocked(
         @property
         def metadata(self) -> PackageMetadata:
             return EmailMessageMocker(self.__dist.metadata)
+
+        def locate_file(
+            self, path: str | os.PathLike[str]
+        ) -> piplicenses_lib.importlib_metadata._meta.SimplePath:
+            return self.__dist.locate_file(path)
+
+        def read_text(self, filename) -> str | None:
+            return self.__dist.read_text(filename)
 
     class EmailMessageMocker(email.message.Message):
         def __init__(self, orig_msg: PackageMetadata) -> None:
@@ -655,6 +663,14 @@ class TestGetLicenses(CommandLineTestCase):
         packages = list(piplicenses.get_packages(args))
         self.assertNotIn(UNICODE_APPENDIX, packages[-1].name)
 
+    def test_with_default_filter_and_license_file(self) -> None:
+        self._patch_distributions()
+        args = self.parser.parse_args(
+            ["--filter-strings", "--with-license-file"]
+        )
+        packages = list(piplicenses.get_packages(args))
+        self.assertNotIn(UNICODE_APPENDIX, packages[-1].name)
+
     def test_with_specified_filter(self) -> None:
         self._patch_distributions()
         args = self.parser.parse_args(
@@ -732,8 +748,6 @@ class TestGetLicenses(CommandLineTestCase):
 
 def test_output_file_success(monkeypatch, capsys) -> None:
     def mocked_open(*args, **kwargs):
-        import tempfile
-
         return tempfile.TemporaryFile("w")
 
     monkeypatch.setattr(piplicenses, "open", mocked_open)
@@ -764,6 +778,23 @@ def test_output_file_none(monkeypatch, capsys) -> None:
 
     # stdout and stderr are expected not to be called
     assert "" == captured.out
+    assert "" == captured.err
+
+
+def test_output_file_content(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "exit", lambda n: None)
+
+    with tempfile.NamedTemporaryFile() as fd:
+        fd.close()
+
+        save_if_needs(fd.name, "Hello World!")
+        assert Path(fd.name).read_text() == "Hello World!\n"
+
+        save_if_needs(fd.name, "Hello World!\n")
+        assert Path(fd.name).read_text() == "Hello World!\n"
+
+    captured = capsys.readouterr()
+    assert f"created path: {fd.name}\n" * 2 == captured.out
     assert "" == captured.err
 
 
@@ -925,9 +956,15 @@ def test_verify_args(
         assert arg in capture
 
 
+def test_load_config_from_file():
+    with tempfile.NamedTemporaryFile() as fd:
+        pass
+    assert load_config_from_file(fd.name) == {}
+
+
 def test_pyproject_toml_args_parsed_correctly():
     # we test that parameters of different types are deserialized correctly
-    pyptoject_conf = {
+    pyproject_conf = {
         "tool": {
             __pkgname__: {
                 # choices_from_enum
@@ -942,7 +979,7 @@ def test_pyproject_toml_args_parsed_correctly():
         }
     }
 
-    toml_str = tomli_w.dumps(pyptoject_conf)
+    toml_str = tomli_w.dumps(pyproject_conf)
 
     # Create a temporary file and write the TOML string to it
     with tempfile.NamedTemporaryFile(
@@ -954,7 +991,7 @@ def test_pyproject_toml_args_parsed_correctly():
         parser = create_parser(temp_file.name)
         args = parser.parse_args([])
 
-        tool_conf = pyptoject_conf["tool"][__pkgname__]
+        tool_conf = pyproject_conf["tool"][__pkgname__]
 
         # assert values are correctly parsed from toml
         assert args.from_ == FromArg.CLASSIFIER

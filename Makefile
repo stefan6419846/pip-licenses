@@ -1,6 +1,6 @@
 REPO_NAME:=$(shell basename -s .git `git remote get-url origin`)
 VENV_NAME:='venv/$(REPO_NAME)'
-DEV_DEPENDS:='dev-requirements'
+DEV_DEPENDS:='requirements/dev'
 
 .DEFAULT_GOAL:= help
 .PHONY: help
@@ -26,37 +26,37 @@ setup:
 
 .PHONY: local-install
 local-install:
-	pip install -e .
+	$(VENV_NAME)/bin/python -m pip install -e .
 
 .PHONY: local-uninstall
 local-uninstall:
-	pip uninstall -y pip-licenses
+	$(VENV_NAME)/bin/python -m pip uninstall -y pip-licenses
 
 .PHONY: update-depends
 update-depends:
-	pip-compile --extra dev -o dev-requirements.txt -U pyproject.toml
+	$(VENV_NAME)/bin/python -m pip-compile --extra dev -o requirements/dev.txt -U pyproject.toml
 
 .PHONY: lint
 lint:
-	black .
-	isort .
-	mypy --install-types --non-interactive .
+	$(VENV_NAME)/bin/python -m black .
+	$(VENV_NAME)/bin/python -m isort .
+	$(VENV_NAME)/bin/python -m mypy --install-types --non-interactive .
 
 .PHONY: test
 test:
-	pytest
+	$(VENV_NAME)/bin/python -m pytest
 
 .PHONY: deploy
 deploy: build
-	twine upload dist/*
+	$(VENV_NAME)/bin/python -m twine upload dist/*
 
 .PHONY: test-deploy
 test-deploy: build
-	twine upload -r pypitest dist/*
+	$(VENV_NAME)/bin/python -m twine upload -r pypitest dist/*
 
 .PHONY: build
 build: clean
-	python -m build
+	$(VENV_NAME)/bin/python -m build
 
 .PHONY: clean
 clean:

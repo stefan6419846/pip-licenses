@@ -1,6 +1,4 @@
-# pip-licenses
-
-[![Build Status](https://github.com/raimon49/pip-licenses/workflows/Python%20package/badge.svg)](https://github.com/raimon49/pip-licenses/actions?query=workflow%3A%22Python+package%22) [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pip-licenses.svg)](https://pypi.org/project/pip-licenses/) [![PyPI version](https://badge.fury.io/py/pip-licenses.svg)](https://badge.fury.io/py/pip-licenses) [![GitHub Release](https://img.shields.io/github/release/raimon49/pip-licenses.svg)](https://github.com/raimon49/pip-licenses/releases) [![Codecov](https://codecov.io/gh/raimon49/pip-licenses/branch/master/graph/badge.svg)](https://codecov.io/gh/raimon49/pip-licenses) [![GitHub contributors](https://img.shields.io/github/contributors/raimon49/pip-licenses)](https://github.com/raimon49/pip-licenses/graphs/contributors) [![BSD License](http://img.shields.io/badge/license-MIT-green.svg)](https://github.com/raimon49/pip-licenses/blob/master/LICENSE) [![PyPI - Downloads](https://img.shields.io/pypi/dm/pip-licenses)](https://pypistats.org/packages/pip-licenses)
+# pip-licenses-cli
 
 Dump the software license list of Python packages installed with pip.
 
@@ -52,11 +50,13 @@ Dump the software license list of Python packages installed with pip.
 
 ## Description
 
-`pip-licenses` is a CLI tool for checking the software license of installed Python packages with pip.
+`pip-licenses` is a CLI tool for checking the software licenses of installed Python packages with pip.
 
 Implemented with the idea inspired by `composer licenses` command in Composer (a.k.a PHP package management tool).
 
 https://getcomposer.org/doc/03-cli.md#licenses
+
+This is a fork of the original [pip-licenses](https://github.com/raimon49/pip-licenses) project.
 
 ## Installation
 
@@ -65,22 +65,6 @@ Install it via PyPI using `pip` command.
 ```bash
 # Install or Upgrade to newest available version
 $ pip install -U pip-licenses
-
-# If upgrading from pip-licenses 3.x, remove PTable
-$ pip uninstall -y PTable
-```
-
-**Note for Python 3.7 users:** pip-licenses 4.x discontinued support earlier than the Python 3.7 EOL schedule. If you want to use it with Python 3.7, install pip-licenses 3.x.
-
-```bash
-# Using old version for the Python 3.7 environment
-$ pip install 'pip-licenses<4.0'
-```
-
-**Note:** If you are still using Python 2.7, install version less than 2.0. No new features will be provided for version 1.x.
-
-```bash
-$ pip install 'pip-licenses<2.0'
 ```
 
 ## Usage
@@ -677,7 +661,7 @@ See useful reports:
 
 ## License
 
-[MIT License](https://github.com/raimon49/pip-licenses/blob/master/LICENSE)
+[MIT License](https://github.com/stefan6419846/pip-licenses/blob/master/LICENSE)
 
 ### Dependencies
 
@@ -688,14 +672,6 @@ See useful reports:
 
 `pip-licenses` has been implemented in the policy to minimize the dependence on external package.
 
-## Uninstallation
-
-Uninstall package and dependent package with `pip` command.
-
-```bash
-$ pip uninstall pip-licenses prettytable wcwidth
-```
-
 ## Contributing
 
-See [contribution guidelines](https://github.com/raimon49/pip-licenses/blob/master/CONTRIBUTING.md).
+See [contribution guidelines](https://github.com/stefan6419846/pip-licenses/blob/master/CONTRIBUTING.md).
